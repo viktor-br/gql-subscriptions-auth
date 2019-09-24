@@ -13,7 +13,7 @@ npm install
 ```
 
 ## Structure of the project
-_server.js_ provides primitive API for messenger with multiple chats. Messages could be sent or received from by chatId. 
+[server.js](./server.js) provides primitive API for messenger with multiple chats. Messages could be sent to or received from the server by chatId. 
 
 ```graphql
   type Message {
@@ -35,12 +35,12 @@ _server.js_ provides primitive API for messenger with multiple chats. Messages c
   }
 ```
 
-_client-subscribe.js_ subscribes to readMessageFromChat to receive message from chat (by default subscribes to chatId=1):
+_client-subscribe.js_ subscribes to *readMessageFromChat* subscription to receive message from chat for a particular chatId (by default for chatId=1):
 ```bash
 node client-subscribe.js 2
 ```
 
-_client-send-message.js_ send message to server with using _writeMessageToChat_ mutation for a particular chatId (by default send for chatId=1):
+_client-send-message.js_ sends message to server with using _writeMessageToChat_ mutation for a particular chatId (by default send for chatId=1):
 ```bash
 node client-send-message.js 2
 ```
@@ -96,18 +96,34 @@ The subscription life cycle is simple:
 * onDisconnect (marker 9 and 10), when client closes connection
 
 ## Authentication and Authorization
-Image below is a *server.js* code with markers for possible places with usage of authentication and authorization. 
+Authentication is a process, which answer the question who user is. Authorization answers the question what user can or cannot do.
+
+Depend on requirements, authentication and authorization could be joined or separated. If user always can read chat, no need in authorization at all.
+But if user can be kicked out of the chat at any time and cannot any more read chat, we need authorise user all the time.
+
+Image below is a [server.js](./server.js) code with markers for possible places with usage of authentication and authorization. 
 
 ![server code with auth markers](./images/server-code-auth.png)
 
 Apollo documentation has an example of authentication over webSocket [https://www.apollographql.com/docs/apollo-server/data/subscriptions/#authentication-over-websocket](https://www.apollographql.com/docs/apollo-server/data/subscriptions/#authentication-over-websocket)
 in onConnect method (marked with letter E).
-In case you has unified authentication for query/mutation and subscription, you can place authentication logic in context creation (marked with letter D).
+In case you have unified authentication for query/mutation and subscription, you can place authentication logic in context creation (marked with letter D).
 
-Authorization could be always a part of authentication, but could be separated. Websocket connection could be long-lived, but user permissions not.
-We can put authorization logic in asyncIteratorFn (marked with letter B) and check permissions when create subscription, but it also could be
-long lived, it exists till client unsubscribe (or server shutdown for sure). Next place is a filterFn (marked with letter C), but this function will be called for each
+Websocket connection could be long-lived, so in case of strict requirements for an authorization, we cannot rely on onConnect call or context creation.
+
+First place, where we can put authorization logic is asyncIteratorFn (marked with letter B). We just check permissions when create subscription, but subscription also could be
+long lived as a websocket itself and operates till client unsubscribe (or server shutdown). There is another issue with authorisation in subscribe: for now (24.09.2019), if subscription still
+in opening phase and client call unsubscribe, subscription stays active inside Apollo. I created separate repository with a code to reproduce the issue 
+[https://github.com/viktor-br/subscriptions-transport-ws-reproduce-issue](https://github.com/viktor-br/subscriptions-transport-ws-reproduce-issue) 
+(and an issue in lib repository https://github.com/apollographql/subscriptions-transport-ws/issues/645). 
+
+Next place is a filterFn (marked with letter C), but this function will be called for each
 subscription, which means we need to check permissions for all connected users and definitely waste resources.
-Last point is a resolver itself (marked with letter A), which will be called when all subscriptions for particular chat id filtered out.
+
+Last place is a resolver itself (marked with letter A), which will be called when all subscriptions for particular chat id filtered out and server sends message to a client.
+
+## Conclusion
+When authorization should be called (and how) totally depends on requirements. Resolve method (marked with A) looks like a better
+place in general, b/c it allows check permission just before send message to end user. 
 
 
