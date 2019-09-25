@@ -155,9 +155,9 @@ subscription stays active inside Apollo. I created separate repository with a co
 Next place is a filterFn (marked with letter C), but this function will be called for each
 subscription, which means we need to check permissions for all connected users and definitely waste resources.
 
-Last place is a resolver itself (marked with letter A), which will be called when all subscriptions for other chat IDs already filtered out and server 
+Last place is a resolver itself (marked with letter A), which will be called only for subscriptions with selected chat ID and server 
 sends message to a client. But if filter is not used and resolve will be invoked for every subscription, then no difference with previous case and 
-on any incoming message authorisation will be triggered.
+on any incoming message authorisation will be triggered for each subscription.
 
 Authorisation result could be cached, but it's separate topic.
 
