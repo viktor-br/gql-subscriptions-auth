@@ -78,31 +78,35 @@ Follow next steps to trigger each step of the subscription life cycle:
 
 as a result of previous steps, you'll see server.js running log:
 ```text
- 1. 21:00:41 subscriptions:onConnect                                            
- 2. 21:00:41 subscription:readMessageFromChatResolver:subscribe() asyncIterator
- 3. 21:00:45 subscriptions:onConnect                                            
- 4. 21:00:45 subscription:readMessageFromChatResolver:subscribe() asyncIterator
- 5. 21:00:51 mutation:writeMessageToChat:resolve()                              
- 6. 21:00:51 subscription:readMessageFromChatResolver:subscribe() filter 1 2                                     
- 7. 21:00:51 subscription:readMessageFromChatResolver:subscribe() filter 2 2    
- 8. 21:00:51 subscription:readMessageFromChatResolver:resolve() 2               
- 9. 21:01:02 subscriptions:onDisconnect                                         
-10. 21:01:04 subscriptions:onDisconnect                                         
+Server ready at http://localhost:4000/
+ 1. 20:43:55 subscriptions:onConnect
+ 2. 20:43:55 subscriptions:context
+ 3. 20:43:55 subscription:readMessageFromChatResolver:subscribe() asyncIterator
+ 4. 20:43:58 subscriptions:onConnect
+ 5. 20:43:58 subscriptions:context
+ 6. 20:43:58 subscription:readMessageFromChatResolver:subscribe() asyncIterator
+ 7. 20:44:00 mutation:writeMessageToChat:resolve()
+ 8. 20:44:00 subscription:readMessageFromChatResolver:subscribe() filter 1 2
+ 9. 20:44:00 subscription:readMessageFromChatResolver:subscribe() filter 2 2
+10. 20:44:00 subscription:readMessageFromChatResolver:resolve() 2
+11. 20:44:04 subscriptions:onDisconnect
+12. 20:44:06 subscriptions:onDisconnect
 ```
 Next image shows the order of calls. Red markers are numbers of the server.js log lines. 
 
 ![server code with log lines markers](./images/server-code-log.png)
 
 The subscription life cycle is simple: 
-* onConnect (markers 1 and 3), when client tries to open websocket connection 
-* asyncIteratorFn (markers 2 and 4), when client tries to create subscription
-* filterFn (markers 6 and 7), when message comes via pubsub
-* resolve (marker 8), if subscription for a particular chat matched a message
-* onDisconnect (marker 9 and 10), when client closes connection.
+* onConnect (markers 1 and 4), when client tries to open websocket connection
+* context creation (markers 2 and 5) 
+* asyncIteratorFn (markers 3 and 6), when client tries to create subscription
+* filterFn (markers 8 and 9), when message comes via pubsub
+* resolve (marker 10), if subscription for a particular chat matched a message
+* onDisconnect (marker 11 and 12), when client closes connection.
 
 ## Authentication and Authorization
 Depend on requirements, authentication and authorization could be joined or separated. If user always can read chat, no need in authorization at all.
-But if user can be kicked out of the chat at any time and cannot read chat any more, we need to authorize user all the time.
+But if user can be kicked out of the chat at any time and cannot read chat any more, we need to authorize user as soon as possible.
 
 Image below is a [server.js](./server.js) code with markers for places, where authentication and authorization logic could be used. 
 
@@ -114,10 +118,32 @@ in onConnect method (marked with letter E).
 In case you have unified authentication for query/mutation and subscription, you can place authentication logic in context creation (marked with 
 letter D).
 
-Websocket connection could be long-lived, so in case of strict requirements for an authorization, we cannot rely on onConnect call or context 
-creation.
+For sure, we can combine authentication and authorization in one place and do it in onConnect or context creation. We even can use keep-alive
+calls to do it periodically. See image below how to set up keep-alive timeout for subscriptions.
 
-Authorisation result could be cached, but it's separate topic.
+![server code with keep-alive option](./images/server-code-keep-alive.png)
+
+As a result, you can see periodical onConnect and onDisconnect calls in server.js logs:
+```text
+Server ready at http://localhost:4000/
+20:02:24 subscriptions:onConnect
+20:02:24 subscription:readMessageFromChatResolver:subscribe() asyncIterator
+20:02:54 subscriptions:onDisconnect
+20:02:54 subscriptions:onConnect
+20:02:54 subscription:readMessageFromChatResolver:subscribe() asyncIterator
+20:03:24 subscriptions:onDisconnect
+20:03:24 subscriptions:onConnect
+20:03:24 subscription:readMessageFromChatResolver:subscribe() asyncIterator
+20:04:24 subscriptions:onDisconnect
+20:04:24 subscriptions:onConnect
+20:04:24 subscription:readMessageFromChatResolver:subscribe() asyncIterator
+20:04:54 subscriptions:onDisconnect
+20:04:54 subscriptions:onConnect
+20:04:54 subscription:readMessageFromChatResolver:subscribe() asyncIterator
+```
+
+It's obvious, that we should not send keep-alive too often, so we have a delay between user blockage and permissions update after onConnect call.
+Let's check other places where authorization logic could be added. 
 
 First place, where we can put authorization logic is asyncIteratorFn (marked with letter B). We just check permissions, when create subscription, 
 but subscription also could be belong lived as a websocket itself and operates till client's unsubscribe call (or server shutdown). 
@@ -133,8 +159,9 @@ Last place is a resolver itself (marked with letter A), which will be called whe
 sends message to a client. But if filter is not used and resolve will be invoked for every subscription, then no difference with previous case and 
 on any incoming message authorisation will be triggered.
 
+Authorisation result could be cached, but it's separate topic.
+
 ## Conclusion
 When authorization should be called (and how) totally depends on requirements. Resolve method (marked with A) looks like a better
 place in general, b/c it allows check permission just before send message to end user. 
-
 

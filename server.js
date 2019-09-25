@@ -92,6 +92,11 @@ const server = new ApolloServer({
   resolvers,
   context: async ({ req, connection }) => {
     if (connection) {
+      console.log(
+        new Date().toLocaleTimeString('de-DE'),
+        'subscriptions:context',
+      );
+
       return { ...connection.context, pubsub };
     } else {
       return { pubsub };
