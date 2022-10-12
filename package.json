@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "",
   "dependencies": {
-    "apollo-server": "^2.9.3",
+    "apollo-server": "^2.25.4",
     "graphql": "^14.5.4",
     "prettier": "^1.18.2",
     "waait": "^1.0.5",
